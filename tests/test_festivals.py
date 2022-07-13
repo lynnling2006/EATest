@@ -1,8 +1,7 @@
-# test file for checking festivals api 
+# test scenarios for checking festivals api 
 
 import requests
 import pytest
-import pdb
 from pytest_schema import schema
 from utils import config
 import data.model_schema as model_schema
@@ -29,6 +28,7 @@ class TestFestivals(object):
 
     @pytest.mark.parametrize('accept_type', ['text/plain', 'application/json', 'text/json', ''])
     def test_response_content_type(self, accept_type):
+        """Check content type with sending accept_type in request"""
 
         headers = {'accept': accept_type} if accept_type != '' else {}
         expect_type = accept_type if accept_type != '' else 'application/json'
@@ -42,16 +42,19 @@ class TestFestivals(object):
             assert content_type == expect_type, \
                 f"response content_type:{content_type} different with accept_type:{expect_type}!"
         else:
-            pytest.skip(f"test skipped since status code is {rsp.status_code}!")
+            pytest.skip(f"test skipped since status code is {rsp.status_code}, please re-test!")
 
     def test_throttle(self):
-        """ Check throttle if more than n request sent """
+        """ Check throttle when multiple request sent in sequence """
+   
         def multiple_request(n):
             for i in range(n):
                 rsp = requests.request("GET", url=config.festivals_url)
                 logger.info(f"request {i} took {rsp.elapsed}")
+                # status code 200 expected if not reach threshold value, otherwise expected 429
                 exp_status = 200 if i < n-1 else 429
                 if rsp.status_code == 429:
+                    # check msg and content_type for throttle
                     content_type = rsp.headers['content-type'].split(';')[0].strip()
                     exp_msg = "Too many requests, throttling"
                     assert rsp.content.decode('utf-8') == exp_msg, "throttle msg not as expected!"
@@ -64,10 +67,12 @@ class TestFestivals(object):
         multiple_request(int(config.threshold_throttle))
 
     def test_response_header(self):
-        """Check response header """
+        """ Check response header """
         rsp = requests.request("GET", url=config.festivals_url)
         headers = rsp.headers
         logger.info(f"response headers: {headers}")
+
+        # expect headers 
         exp_headers = {
             "connection": "keep-alive",
             "Content-Encoding": "Gzip",
@@ -79,6 +84,7 @@ class TestFestivals(object):
             "Set-Cookie": ""
         }
 
+        # verify response headers
         for k, v in exp_headers.items():
             if k in headers.keys():
                 if k == "Set-Cookie":
@@ -101,7 +107,8 @@ class TestFestivals(object):
             festivals = rsp.json()
 
             # verify response model, it should match the defined schema
-            assert schema(model_schema.festivals) == festivals
+            assert schema(model_schema.festivals) == festivals, \
+                "response schema not as defined"
 
             festival_list = []
             band_name_list = dict()
@@ -133,10 +140,10 @@ class TestFestivals(object):
                 assert len(band_record_list) > 0, \
                     f"empty band recordLabel found for following band {band_record_list}"
 
-            print(festival_list)
+            logger.info(f"festival list: {festival_list}")
             festival_set = set(festival_list)
             assert len(festival_list) == len(festival_set), \
                 f"There are duplicated festival in response data!"
             assert "" not in festival_list, f"empty festival_name found!"
         else:
-            pytest.skip(f"case skipped because return code is {rsp.status_code}!")
+            pytest.skip(f"case skipped because return code is {rsp.status_code}!, please re-test")
