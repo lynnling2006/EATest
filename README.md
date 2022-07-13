@@ -17,6 +17,7 @@ after python is installed, run following command to install tool pipenv
 pip install pipenv
 ```
 __Install other package__:
+
 after pipenv is reay, enter into repository root foler, run following command to prepare virtual environment
 ```sh
 pipenv install
