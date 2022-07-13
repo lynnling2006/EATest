@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>pytest_report.html</h1>
+    <p>Report generated on 13-Jul-2022 at 14:43:17 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>C:\Program Files\java\jdk-15</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.11.0", "pytest": "7.1.2"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.19043-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "2.0.1", "schema": "0.1.1"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.9.12</td></tr></table>
+    <h2>Summary</h2>
+    <p>8 tests ran in 1.99 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">5 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">3 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_response_content_type[text/plain]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;tests.test_festivals.TestFestivals object at 0x000001900B480C70&gt;, expect_content_type = &#x27;text/plain&#x27;<br/><br/>    @pytest.mark.parametrize(&#x27;expect_content_type&#x27;, [&#x27;text/plain&#x27;, &#x27;application/json&#x27;, &#x27;text/json&#x27;, &#x27;&#x27;])<br/>    def test_response_content_type(self, expect_content_type):<br/>    <br/>        headers = {&#x27;accept&#x27;: expect_content_type} if expect_content_type != &#x27;&#x27; else {}<br/>    <br/>        rsp = requests.request(&quot;GET&quot;, url=host + path, headers=headers)<br/>        content_type = rsp.headers[&#x27;content-type&#x27;].split(&#x27;;&#x27;)[0].strip()<br/>    <br/>        print(f&quot;\ncontent-type:{content_type}&quot;)<br/>        print(f&quot;status code:{rsp.status_code}&quot;)<br/>        print(f&quot;content: {rsp.content}&quot;)<br/>        print(rsp.elapsed.total_seconds())<br/>    <br/>        if rsp.status_code == 200:<br/>            if expect_content_type != &#x27;&#x27;:<br/>&gt;               assert content_type == expect_content_type<br/><span class="error">E               AssertionError: assert &#x27;application/json&#x27; == &#x27;text/plain&#x27;</span><br/><span class="error">E                 - text/plain</span><br/><span class="error">E                 + application/json</span><br/><br/>tests\test_festivals.py:47: AssertionError<br/> ------------------------------Captured stdout call------------------------------ <br/>
+content-type:application/json
+status code:200
+content: b&#x27;[{&quot;name&quot;:&quot;Small Night In&quot;,&quot;bands&quot;:[{&quot;name&quot;:&quot;The Black Dashes&quot;,&quot;recordLabel&quot;:&quot;Fourth Woman Records&quot;},{&quot;name&quot;:&quot;Squint-281&quot;,&quot;recordLabel&quot;:&quot;Outerscope&quot;},{&quot;name&quot;:&quot;Wild Antelope&quot;,&quot;recordLabel&quot;:&quot;Marner Sis. Recording&quot;},{&quot;name&quot;:&quot;Green Mild Cold Capsicum&quot;,&quot;recordLabel&quot;:&quot;Marner Sis. Recording&quot;},{&quot;name&quot;:&quot;Yanke East&quot;,&quot;recordLabel&quot;:&quot;MEDIOCRE Music&quot;}]},{&quot;bands&quot;:[{&quot;name&quot;:&quot;Propeller&quot;,&quot;recordLabel&quot;:&quot;Pacific Records&quot;},{&quot;name&quot;:&quot;Critter Girls&quot;,&quot;recordLabel&quot;:&quot;ACR&quot;}]}]&#x27;
+0.11227
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 239<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_throttle</td>
+          <td class="col-duration">0.59</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;tests.test_festivals.TestFestivals object at 0x000001900B480EE0&gt;<br/><br/>    def test_throttle(self):<br/>        &quot;&quot;&quot; Test throttle if more than n request sent &quot;&quot;&quot;<br/>        def multiple_request(n):<br/>            for i in range(n):<br/>                rsp = requests.request(&quot;GET&quot;, url=host + path)<br/>                print(f&quot;request {i} took {rsp.elapsed}&quot;)<br/>                exp_status = 200 if i &lt; 3 else 429<br/>                assert rsp.status_code == exp_status, f&quot;request {i} failed&quot;<br/>    <br/>&gt;       multiple_request(10)<br/><br/>tests\test_festivals.py:62: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>n = 10<br/><br/>    def multiple_request(n):<br/>        for i in range(n):<br/>            rsp = requests.request(&quot;GET&quot;, url=host + path)<br/>            print(f&quot;request {i} took {rsp.elapsed}&quot;)<br/>            exp_status = 200 if i &lt; 3 else 429<br/>&gt;           assert rsp.status_code == exp_status, f&quot;request {i} failed&quot;<br/><span class="error">E           AssertionError: request 3 failed</span><br/><span class="error">E           assert 200 == 429</span><br/><span class="error">E            +  where 200 = &lt;Response [200]&gt;.status_code</span><br/><br/>tests\test_festivals.py:60: AssertionError<br/> ------------------------------Captured stdout call------------------------------ <br/>request 0 took 0:00:00.136549
+request 1 took 0:00:00.131097
+request 2 took 0:00:00.132993
+request 3 took 0:00:00.155595
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 405
+DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 2
+DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 309
+DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 404<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_schema</td>
+          <td class="col-duration">0.13</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;tests.test_festivals.TestFestivals object at 0x000001900B4809A0&gt;<br/><br/>    def test_schema(self):<br/>    <br/>        rsp = requests.request(&quot;GET&quot;, url=host + path)<br/>    <br/>        print(&quot;\n&quot;)<br/>        print(f&quot;content: {rsp.content}&quot;)<br/>    <br/>        if rsp.status_code == 200:<br/>            festivals = rsp.json()<br/>            # verify response model, it should match the defined schema<br/>&gt;           assert schema(api_schema.festivals) == festivals<br/><br/>tests\test_festivals.py:91: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>C:\Users\Steven\.virtualenvs\myproject-HCRrAB4W\lib\site-packages\pytest_schema\schema.py:45: in __eq__<br/>    return bool(self.validate(value))<br/>C:\Users\Steven\.virtualenvs\myproject-HCRrAB4W\lib\site-packages\schema.py:364: in validate<br/>    data = Schema(type(s), error=e).validate(data, **kwargs)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = Schema(&lt;class &#x27;list&#x27;&gt;), data = &#x27;&#x27;, kwargs = {}, Schema = &lt;class &#x27;pytest_schema.schema.Schema&#x27;&gt;<br/>s = &lt;class &#x27;list&#x27;&gt;, e = None, i = True, flavor = 3<br/><br/>    def validate(self, data, **kwargs):<br/>        Schema = self.__class__<br/>        s = self._schema<br/>        e = self._error<br/>        i = self._ignore_extra_keys<br/>    <br/>        if isinstance(s, Literal):<br/>            s = s.schema<br/>    <br/>        flavor = _priority(s)<br/>        if flavor == ITERABLE:<br/>            data = Schema(type(s), error=e).validate(data, **kwargs)<br/>            o = Or(*s, error=e, schema=Schema, ignore_extra_keys=i)<br/>            return type(data)(o.validate(d, **kwargs) for d in data)<br/>        if flavor == DICT:<br/>            exitstack = ExitStack()<br/>            data = Schema(dict, error=e).validate(data, **kwargs)<br/>            new = type(data)()  # new - is a dict of the validated values<br/>            coverage = set()  # matched schema keys<br/>            # for each key and value find a schema entry matching them, if any<br/>            sorted_skeys = sorted(s, key=self._dict_key_priority)<br/>            for skey in sorted_skeys:<br/>                if hasattr(skey, &quot;reset&quot;):<br/>                    exitstack.callback(skey.reset)<br/>    <br/>            with exitstack:<br/>                # Evaluate dictionaries last<br/>                data_items = sorted(data.items(), key=lambda value: isinstance(value[1], dict))<br/>                for key, value in data_items:<br/>                    for skey in sorted_skeys:<br/>                        svalue = s[skey]<br/>                        try:<br/>                            nkey = Schema(skey, error=e).validate(key, **kwargs)<br/>                        except SchemaError:<br/>                            pass<br/>                        else:<br/>                            if isinstance(skey, Hook):<br/>                                # As the content of the value makes little sense for<br/>                                # keys with a hook, we reverse its meaning:<br/>                                # we will only call the handler if the value does match<br/>                                # In the case of the forbidden key hook,<br/>                                # we will raise the SchemaErrorForbiddenKey exception<br/>                                # on match, allowing for excluding a key only if its<br/>                                # value has a certain type, and allowing Forbidden to<br/>                                # work well in combination with Optional.<br/>                                try:<br/>                                    nvalue = Schema(svalue, error=e).validate(value, **kwargs)<br/>                                except SchemaError:<br/>                                    continue<br/>                                skey.handler(nkey, data, e)<br/>                            else:<br/>                                try:<br/>                                    nvalue = Schema(svalue, error=e, ignore_extra_keys=i).validate(value, **kwargs)<br/>                                except SchemaError as x:<br/>                                    k = &quot;Key &#x27;%s&#x27; error:&quot; % nkey<br/>                                    message = self._prepend_schema_name(k)<br/>                                    raise SchemaError([message] + x.autos, [e.format(data) if e else None] + x.errors)<br/>                                else:<br/>                                    new[nkey] = nvalue<br/>                                    coverage.add(skey)<br/>                                    break<br/>            required = set(k for k in s if not self._is_optional_type(k))<br/>            if not required.issubset(coverage):<br/>                missing_keys = required - coverage<br/>                s_missing_keys = &quot;, &quot;.join(repr(k) for k in sorted(missing_keys, key=repr))<br/>                message = &quot;Missing key%s: %s&quot; % (_plural_s(missing_keys), s_missing_keys)<br/>                message = self._prepend_schema_name(message)<br/>                raise SchemaMissingKeyError(message, e.format(data) if e else None)<br/>            if not self._ignore_extra_keys and (len(new) != len(data)):<br/>                wrong_keys = set(data.keys()) - set(new.keys())<br/>                s_wrong_keys = &quot;, &quot;.join(repr(k) for k in sorted(wrong_keys, key=repr))<br/>                message = &quot;Wrong key%s %s in %r&quot; % (_plural_s(wrong_keys), s_wrong_keys, data)<br/>                message = self._prepend_schema_name(message)<br/>                raise SchemaWrongKeyError(message, e.format(data) if e else None)<br/>    <br/>            # Apply default-having optionals that haven&#x27;t been used:<br/>            defaults = set(k for k in s if isinstance(k, Optional) and hasattr(k, &quot;default&quot;)) - coverage<br/>            for default in defaults:<br/>                new[default.key] = _invoke_with_optional_kwargs(default.default, **kwargs) if callable(default.default) else default.default<br/>    <br/>            return new<br/>        if flavor == TYPE:<br/>            if isinstance(data, s) and not (isinstance(data, bool) and s == int):<br/>                return data<br/>            else:<br/>                message = &quot;%r should be instance of %r&quot; % (data, s.__name__)<br/>                message = self._prepend_schema_name(message)<br/>&gt;               raise SchemaUnexpectedTypeError(message, e.format(data) if e else None)<br/><span class="error">E               schema.SchemaUnexpectedTypeError: &#x27;&#x27; should be instance of &#x27;list&#x27;</span><br/><br/>C:\Users\Steven\.virtualenvs\myproject-HCRrAB4W\lib\site-packages\schema.py:440: SchemaUnexpectedTypeError<br/> ------------------------------Captured stdout call------------------------------ <br/>
+
+content: b&#x27;&quot;&quot;&#x27;
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 2<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_status</td>
+          <td class="col-duration">0.19</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>
+content-type:application/json
+status code:200
+content: b&#x27;[{&quot;bands&quot;:[{&quot;name&quot;:&quot;Critter Girls&quot;,&quot;recordLabel&quot;:&quot;ACR&quot;},{&quot;name&quot;:&quot;Propeller&quot;,&quot;recordLabel&quot;:&quot;Pacific Records&quot;}]},{&quot;name&quot;:&quot;Trainerella&quot;,&quot;bands&quot;:[{&quot;name&quot;:&quot;Wild Antelope&quot;,&quot;recordLabel&quot;:&quot;Still Bottom Records&quot;},{&quot;name&quot;:&quot;Manish Ditch&quot;,&quot;recordLabel&quot;:&quot;ACR&quot;},{&quot;name&quot;:&quot;Adrian Venti&quot;,&quot;recordLabel&quot;:&quot;Monocracy Records&quot;},{&quot;name&quot;:&quot;YOUKRANE&quot;,&quot;recordLabel&quot;:&quot;Anti Records&quot;}]}]&#x27;
+0:00:00.178634
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 190
+INFO     root:test_festivals.py:23 test start in log.<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_response_content_type[application/json]</td>
+          <td class="col-duration">0.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>
+content-type:application/json
+status code:200
+content: b&#x27;[{&quot;bands&quot;:[{&quot;name&quot;:&quot;Critter Girls&quot;,&quot;recordLabel&quot;:&quot;ACR&quot;},{&quot;name&quot;:&quot;Propeller&quot;,&quot;recordLabel&quot;:&quot;Pacific Records&quot;}]},{&quot;name&quot;:&quot;Twisted Tour&quot;,&quot;bands&quot;:[{&quot;name&quot;:&quot;Auditones&quot;,&quot;recordLabel&quot;:&quot;Marner Sis. Recording&quot;},{&quot;name&quot;:&quot;Squint-281&quot;},{&quot;name&quot;:&quot;Summon&quot;,&quot;recordLabel&quot;:&quot;Outerscope&quot;}]},{&quot;name&quot;:&quot;Trainerella&quot;,&quot;bands&quot;:[{&quot;name&quot;:&quot;Wild Antelope&quot;,&quot;recordLabel&quot;:&quot;Still Bottom Records&quot;},{&quot;name&quot;:&quot;Manish Ditch&quot;,&quot;recordLabel&quot;:&quot;ACR&quot;},{&quot;name&quot;:&quot;Adrian Venti&quot;,&quot;recordLabel&quot;:&quot;Monocracy Records&quot;},{&quot;name&quot;:&quot;YOUKRANE&quot;,&quot;recordLabel&quot;:&quot;Anti Records&quot;}]}]&#x27;
+0.099238
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 251<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_response_content_type[text/json]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>
+content-type:text/html
+status code:429
+content: b&#x27;Too many requests, throttling&#x27;
+0.13996
+test skipped since status code is 429!
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 429 29<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_response_content_type[]</td>
+          <td class="col-duration">0.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>
+content-type:text/html
+status code:429
+content: b&#x27;Too many requests, throttling&#x27;
+0.138782
+test skipped since status code is 429!
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 429 29<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">tests/test_festivals.py::TestFestivals::test_response_header</td>
+          <td class="col-duration">0.12</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>{&#x27;Content-Type&#x27;: &#x27;application/json; charset=utf-8&#x27;, &#x27;Server&#x27;: &#x27;nginx&#x27;, &#x27;Vary&#x27;: &#x27;Accept-Encoding&#x27;, &#x27;X-Powered-By&#x27;: &#x27;Express&#x27;, &#x27;ETag&#x27;: &#x27;W/&quot;454-u5PdCXD+GmZl99qL+iZM39xX3ZE&quot;&#x27;, &#x27;Content-Encoding&#x27;: &#x27;gzip&#x27;, &#x27;Date&#x27;: &#x27;Wed, 13 Jul 2022 04:43:17 GMT&#x27;, &#x27;Content-Length&#x27;: &#x27;403&#x27;, &#x27;Connection&#x27;: &#x27;keep-alive&#x27;, &#x27;Set-Cookie&#x27;: &#x27;AWSALB=MfHs/Z1GuhSuPNvzVt/vC9uh/RUjw8ex1GFHoiUXgTFelKJnz0LHLiz00D6f9od7q0zoG5H6G9zmOtskeMCAZgbtt+jNrx+Yspe/IDiwpBMXU56UncflNyhb64gl; Expires=Wed, 20 Jul 2022 04:43:17 GMT; Path=/, AWSALBCORS=MfHs/Z1GuhSuPNvzVt/vC9uh/RUjw8ex1GFHoiUXgTFelKJnz0LHLiz00D6f9od7q0zoG5H6G9zmOtskeMCAZgbtt+jNrx+Yspe/IDiwpBMXU56UncflNyhb64gl; Expires=Wed, 20 Jul 2022 04:43:17 GMT; Path=/; SameSite=None; Secure&#x27;, &#x27;X-Frame-Options&#x27;: &#x27;DENY&#x27;}
+<br/> -------------------------------Captured log call-------------------------------- <br/>DEBUG    urllib3.connectionpool:connectionpool.py:1003 Starting new HTTPS connection (1): eacp.energyaustralia.com.au:443
+DEBUG    urllib3.connectionpool:connectionpool.py:456 https://eacp.energyaustralia.com.au:443 &quot;GET /codingtest/api/v1/festivals HTTP/1.1&quot; 200 403<br/></div></td></tr></tbody></table></body></html>
