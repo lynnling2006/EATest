@@ -1,25 +1,25 @@
 # EATest
 
-This application is built to do REST API testing using python scripts with the use of Pytest module as testing framework
+This application is built to do API testing using python script with the use of Pytest module as testing framework
 
 
 ## Installation
 
-following below steps to prepare the environment
+Follow below steps to prepare the environment.
 
 __Install Python__:
 ```sh
-version requires above 3.10.0
+This application builds based on python version 3.10.0
 ```
 __Install Pipenv__:
 
-after python is installed, run following command to install tool pipenv
+After python is installed, run following command to install tool pipenv.
 ```sh
 pip install pipenv
 ```
 __Install other package__:
 
-after pipenv is reay, enter into repository root foler, run following command to prepare virtual environment
+After pipenv is ready, enter into repository root folder, run following command to prepare virtual environment
 ```sh
 pipenv install
 ```
@@ -29,4 +29,4 @@ __To run a test, enter into repository root folder, run following command on Ter
 ```sh
 pipenv run pytest
 ```
-after test running, test report file is in folder ./report, log files is in folder ./log
+After run test, test report file is in folder ./report, log files is in folder ./log.
