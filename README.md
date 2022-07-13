@@ -12,6 +12,7 @@ __Install Python__:
 version requires above 3.10.0
 ```
 __Install Pipenv__:
+
 after python is installed, run following command to install tool pipenv
 ```sh
 pip install pipenv
