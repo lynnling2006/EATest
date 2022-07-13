@@ -42,7 +42,7 @@ class TestFestivals(object):
             assert content_type == expect_type, \
                 f"response content_type:{content_type} different with accept_type:{expect_type}!"
         else:
-            pytest.mark.skip(f"test skipped since status code is {rsp.status_code}!")
+            pytest.skip(f"test skipped since status code is {rsp.status_code}!")
 
     def test_throttle(self):
         """ Check throttle if more than n request sent """
@@ -50,36 +50,45 @@ class TestFestivals(object):
             for i in range(n):
                 rsp = requests.request("GET", url=config.festivals_url)
                 logger.info(f"request {i} took {rsp.elapsed}")
-                exp_status = 200 if i < 3 else 429
+                exp_status = 200 if i < n-1 else 429
                 if rsp.status_code == 429:
                     content_type = rsp.headers['content-type'].split(';')[0].strip()
                     exp_msg = "Too many requests, throttling"
-                    assert rsp.content == exp_msg, "throttle msg not as expected!"
+                    assert rsp.content.decode('utf-8') == exp_msg, "throttle msg not as expected!"
                     assert content_type == 'text/html', \
                         "content_type not as expected in throttling response"
 
                 assert rsp.status_code == exp_status, \
-                    f"request {i} failed before reach threshold!"
+                    f"request {i+1} failed before reach threshold!"
 
-        multiple_request(config.threshold_throttle)
+        multiple_request(int(config.threshold_throttle))
 
     def test_response_header(self):
         """Check response header """
         rsp = requests.request("GET", url=config.festivals_url)
         headers = rsp.headers
-        logger.info(headers)
-        
-        assert headers['Connection'] == "keep-alive"
-        assert headers['content-encoding'] == "gzip" 
-        # assert headers['content-length'] == "245" 
-        assert headers['content-type'] == "application/json; charset=utf-8"
-        # date: Tue,12 Jul 2022 11:22:17 GMT 
-        # etag: W/"1f2-q5JHExmr1o9l8/bO+TSFdB9n2tM" 
-        assert headers['server'] == "nginx" 
-        assert headers['vary'] == "Accept-Encoding" 
-        assert headers['x-frame-options'] == "DENY" 
-        assert headers['x-powered-by'] == "Express" 
+        logger.info(f"response headers: {headers}")
+        exp_headers = {
+            "connection": "keep-alive",
+            "Content-Encoding": "Gzip",
+            "Content-Type": "application/json; charset=utf-8",
+            "Server": "nginx",
+            "Vary": "Accept-Encoding",
+            "X-Frame-Options": "DENY",
+            "X-Powered-By": "Express",
+            "Set-Cookie": ""
+        }
 
+        for k, v in exp_headers.items():
+            if k in headers.keys():
+                if k == "Set-Cookie":
+                    # only check Set-Cookie is presented
+                    assert headers[k] is not None, f"{k} is empty!"
+                else:
+                    assert headers[k].upper() == v.upper(), f"{k} is not as expected in headers" 
+            else:
+                # raise error if expected key not returned in headers
+                raise Exception(f"{k} is not presented in headers")
 
     def test_schema_and_data(self):
         """Verify schema and then check details of returned data"""
@@ -90,6 +99,7 @@ class TestFestivals(object):
 
         if rsp.status_code == 200:
             festivals = rsp.json()
+
             # verify response model, it should match the defined schema
             assert schema(model_schema.festivals) == festivals
 

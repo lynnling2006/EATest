@@ -1,3 +1,4 @@
+# define the schema for festival data
 band = {
     "name": str,
     "recordLabel": str
