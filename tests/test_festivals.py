@@ -6,9 +6,12 @@ from pytest_schema import schema
 from utils import config
 import data.model_schema as model_schema
 import logging
+from ratelimit import limits, RateLimitException, sleep_and_retry
+from concurrent.futures import ThreadPoolExecutor as PoolExecutor
+import threading
 
 
-logger = logging.getLogger()
+logger = logging.getLogger("festivals")
 
 class TestFestivals(object):
 
@@ -65,6 +68,61 @@ class TestFestivals(object):
                     f"request {i+1} failed before reach threshold!"
 
         multiple_request(int(config.threshold_throttle))
+    
+    @pytest.mark.parametrize('rate', [10, 59, 60, 70])
+    def test_throttle_with_rate(self, rate):       
+        ONE_MINUTE = 60
+        MAX_CALLS_PER_MINUTE = 60
+        status_code_list = []
+        
+        @sleep_and_retry
+        @limits(calls=rate, period=ONE_MINUTE)
+        def access_rate_limited_api(count):
+            rsp = requests.request("GET", url=config.festivals_url)
+            exp_status = 429 if count > MAX_CALLS_PER_MINUTE else 200
+            status_code_list.append(rsp.status_code)
+
+        for i in range(rate):
+            access_rate_limited_api(i)
+        
+        if rate <= MAX_CALLS_PER_MINUTE:
+            assert 429 not in status_code_list, \
+                "shouldn't report 429 if not reach threshold"
+        else:
+            assert 429 not in status_code_list[:MAX_CALLS_PER_MINUTE],\
+                "shouldn't report 429 if not reach threshold"
+            assert 200 not in status_code_list[MAX_CALLS_PER_MINUTE:],\
+                "should report 429 once it reach threshold"
+
+    @pytest.mark.parametrize('rate', [10, 59, 60, 70])
+    def test_throttle_with_rate_current(self, rate):       
+        ONE_MINUTE = 60
+        MAX_CALLS_PER_MINUTE = 60
+        status_code_list = []
+        from datetime import datetime
+        lock = threading.Lock()
+        
+        @sleep_and_retry
+        @limits(calls=rate, period=ONE_MINUTE)
+        def access_rate_limited_api(count):
+            rsp = requests.request("GET", url=config.festivals_url)
+            exp_status = 429 if count > MAX_CALLS_PER_MINUTE else 200
+            with lock:
+                status_code_list.append(rsp.status_code)
+            print(f'current thread: {threading.get_ident()}')
+        
+        with PoolExecutor(max_workers=3) as executor:
+            for _ in executor.map(access_rate_limited_api, range(10)):
+                pass 
+        print(status_code_list)
+        if rate <= MAX_CALLS_PER_MINUTE:
+            assert 429 not in status_code_list, \
+                "shouldn't report 429 if not reach threshold"
+        else:
+            assert 429 not in status_code_list[:MAX_CALLS_PER_MINUTE],\
+                "shouldn't report 429 if not reach threshold"
+            assert 200 not in status_code_list[MAX_CALLS_PER_MINUTE:],\
+                "should report 429 once it reach threshold"
 
     def test_response_header(self):
         """ Check response header """
